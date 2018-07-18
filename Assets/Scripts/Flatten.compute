@@ -1,0 +1,93 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Flatten
+
+float3 delta;
+
+Texture2D<float4> t0; Texture2D<float4> t1; Texture2D<float4> t2; Texture2D<float4> t3;
+Texture2D<float4> t4; Texture2D<float4> t5; Texture2D<float4> t6; Texture2D<float4> t7;
+
+RWTexture2D<float4> Pixels;
+
+
+
+inline float3 Lerp3(float3 a, float3 b, float t) {
+	float diff = 1.0 - t;
+
+	return float3 (float(diff * a.x + t * b.x), float(diff * a.y + t * b.y), float(diff * a.z + t * b.z));
+}
+
+
+[numthreads(32, 32, 1)]
+void Flatten(uint3 id : SV_DispatchThreadID) // SV_DispatchThreadID
+{
+
+	float4 cBlend[8] = { t0[id.xy], t1[id.xy], t2[id.xy], t3[id.xy], t4[id.xy], t5[id.xy], t6[id.xy], t7[id.xy] };
+
+	uint cnt = 0;
+
+	// if missing pixels to blend then fill them in by averaging 
+	while (cnt < 8)
+	{
+		cnt = 0;
+		for (uint k = 0; k < 8; ++k)
+		{
+			if (cBlend[k].a == 0)
+			{
+				if (k == 0) // can only check right
+				{
+					if (cBlend[k + 1].a == 1) // we can blend from the right
+					{
+						cBlend[k] = cBlend[k + 1];
+						++cnt;
+					}
+				}
+				else if (k == 7) { // can only check left
+					if (cBlend[k - 1].a == 1) // we can blend from the left
+					{
+						cBlend[k] = cBlend[k - 1];
+						++cnt;
+					}
+				}
+				else // we need to blend from left and/or right
+				{
+					uint semCnt = 0;
+					if (cBlend[k + 1].a == 1) // we can blend from the right
+					{
+						semCnt = 1;
+					}
+
+					if (cBlend[k - 1].a == 1) // we can blend from the left
+					{
+						semCnt += 2;
+					}
+
+					switch (semCnt) // choose between blending from the left, right, or lerping average
+					{
+					case 1: cBlend[k] = cBlend[k + 1]; ++cnt; break;
+					case 2: cBlend[k] = cBlend[k - 1]; ++cnt; break;
+					case 3: float3 g = Lerp3(cBlend[k - 1].xyz, cBlend[k + 1].xyz, 0.5); cBlend[k] = float4(g.x, g.y, g.z, 1); ++cnt; break;
+					default: break;
+					}
+
+				}
+			}
+		}
+
+		if (cnt == 0) { // all are black or nothing to fill in
+			cnt = 8;
+		}
+	}
+
+
+	float3 b0 = Lerp3(Lerp3(cBlend[0].xyz, cBlend[1].xyz, delta.x), Lerp3(cBlend[2].xyz, cBlend[3].xyz, delta.x), delta.y);
+	float3 b1 = Lerp3(Lerp3(cBlend[4].xyz, cBlend[5].xyz, delta.x), Lerp3(cBlend[6].xyz, cBlend[7].xyz, delta.x), delta.y);
+	float3 b2 = Lerp3(b0, b1, delta.z);
+	float3 black = float3(0, 0, 0);
+	float a = (b2 != black) ? 1 : 0;
+	Pixels[id.xy] = float4(b2.x, b2.y, b2.z, a);
+
+	//AllMemoryBarrierWithGroupSync();
+}
+
+
+

@@ -1,0 +1,8 @@
+Base path: C:/Program Files/Unity/Editor/Data
+Cmd: initializeCompiler
+Cmd: compileComputeKernel
+  error: 2 plat 4 at Unproject.compute(82): race condition writing to shared resource detected, consider making this write conditional.
+  api=4 insize=2103 outsize=0 ok=0
+Cmd: compileComputeKernel
+  api=4 insize=2109 outsize=1733 ok=1
+Cmd: initializeCompiler

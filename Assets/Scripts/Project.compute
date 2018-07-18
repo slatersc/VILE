@@ -1,0 +1,144 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Project
+
+const int total;
+const int sizeA;
+const int halfWidth;
+const int halfHeight;
+const int width;
+const int height;
+const float4 PV[4];
+const float set[5];
+
+
+struct Frag // 24 bytes
+{
+	float3 color;	// 12 bytes
+	float3 pos;	// 12 bytes
+};
+
+
+uniform RWStructuredBuffer<float4> Pixels : register(u1);
+uniform RWStructuredBuffer<Frag> R : register(u2);
+uniform RWStructuredBuffer<Frag> L : register(u3);
+uniform RWStructuredBuffer<Frag> U : register(u4);
+uniform RWStructuredBuffer<Frag> D : register(u5);
+uniform RWStructuredBuffer<Frag> F : register(u6);
+uniform RWStructuredBuffer<Frag> B : register(u7);
+
+
+
+inline float3 Proj(float3 v)
+{
+
+	// multiply world point by VP matrix
+	float4 temp = float4((float)(PV[0].x * v.x + PV[0].y * v.y + PV[0].z * v.z + PV[0]).w,
+						 (float)(PV[1].x * v.x + PV[1].y * v.y + PV[1].z * v.z + PV[1]).w,
+						 (float)(PV[2].x * v.x + PV[2].y * v.y + PV[2].z * v.z + PV[2]).w,
+						 (float)(PV[3].x * v.x + PV[3].y * v.y + PV[3].z * v.z + PV[3]).w);
+					 
+    if (temp.w > 0.0) // convert x and y from clip space to window coordinates
+	{	
+		float tInv = 1.0 / temp.w;
+		//SomeVec.x = (temp.x * tInv + 1.0) * halfWidth;
+		//SomeVec.y = (temp.y * tInv + 1.0) * halfHeight;
+		//SomeVec.z = 1.0 - (temp.z * 0);// zbuffDiv);
+		return float3((float)((temp.x * tInv + 1.0) * halfWidth), (float)((temp.y * tInv + 1.0) * halfHeight), (float)1.0);
+    }else{
+		return float3(0.0, 0.0, 0.0);
+	}
+}
+
+
+//[numthreads(32, 32, 1)] // max threads allowed per group 32*32 = 1024 threads
+[numthreads(1024, 1, 1)]
+
+void Project(uint3 id : SV_DispatchThreadID) // SV_DispatchThreadID
+{
+	float3 p;
+	uint pos;
+	uint i;
+	for (uint h = 0; h < total; h++) {
+		i = id.x;
+		switch (set[h]) {
+	
+			case 0: // Right face
+					while (i < sizeA) {
+						p = Proj(R[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = R[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			case 1: // Left face
+					while (i < sizeA) {
+						p = Proj(L[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = L[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			case 2: // Up face
+					while (i < sizeA) {
+						p = Proj(U[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = U[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			case 3: // Down face
+					while (i < sizeA) {
+						p = Proj(D[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = D[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			case 4: // Front face
+					while (i < sizeA) {
+						p = Proj(F[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = F[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			case 5: // Back face
+					while (i < sizeA) {
+						p = Proj(B[i].pos);
+						pos = round(p.y) * width + round(p.x);
+						if (pos < sizeA && pos >= 0 && Pixels[pos].w < p.z)
+							Pixels[pos].xyz = B[i].color.xyz; Pixels[pos].w = p.z;
+						i += 1048;
+						
+					}break;
+
+			default:  break;
+		} // end switch
+	} // end for
+
+
+
+	// testing
+	/*
+	i = id.x; 
+	while (i < sizeA) {
+		Pixels[i] = float4(0.0, 1.0, 0.0, 1.0);
+		i += 1024;
+	}
+	*/
+
+	AllMemoryBarrierWithGroupSync();
+}
+
+
+

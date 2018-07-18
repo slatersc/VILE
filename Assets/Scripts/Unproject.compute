@@ -1,0 +1,88 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Unproject
+
+
+const int size;
+
+uniform RWStructuredBuffer<float4> Face : register(u1);
+uniform RWStructuredBuffer<float3> Vert : register(u2);
+
+int offset;
+int face;
+
+const float4 PVI[4];
+
+inline float DecodeFloatRGB(float4 c) {
+	return float(c.x + c.y * 0.003921568627451 + c.z * 1.537870049980777e-5);
+}
+
+// vert = Output = (1 - t) * Input1 + t * Input2 // lerp
+
+inline float3 Lerp3(float3 a, float3 b, float t) {
+	float diff = 1.0 - t;
+
+	return float3 (float(diff * a.x + t * b.x), float(diff * a.y + t * b.y), float(diff * a.z + t * b.z));
+}
+
+
+
+inline float3 UnProj(float x, float y, float z)
+{
+	float vx = PVI[0].x * x + PVI[0].y * y + PVI[0].z * z + PVI[0].w;
+	float vy = PVI[1].x * x + PVI[1].y * y + PVI[1].z * z + PVI[1].w;
+	float vz = PVI[2].x * x + PVI[2].y * y + PVI[2].z * z + PVI[2].w;
+	float vw = PVI[3].x * x + PVI[3].y * y + PVI[3].z * z + PVI[3].w;
+
+	float div = (1.0f / vw);
+
+	vx *= div;
+	vy *= div;
+	vz *= div;
+
+	return float3(vx, vy, vz);
+}
+
+
+
+[numthreads(32, 32, 1)] // max threads allowed per group 32*32 = 1024 threads
+//[numthreads(1024, 1, 1)]
+
+void Unproject (uint3 id : SV_DispatchThreadID) // SV_DispatchThreadID
+{
+	//uint coord = id.y * size + id.x;
+
+	/*
+	int i = offset + id.x;
+	int m = (size == 512) ? 9 : (size == 1024) ? 10 : (size == 2048) ? 11 : 12; // 512 -> 4096 for powers of 2
+	int y = i >> m;
+	int x = (i & (size - 1));
+
+	float sizeDiv = float(2.0 / (float)size);
+
+	float x1 = ((float)x * sizeDiv) - 1.0;
+	float y1 = ((float)y * sizeDiv) - 1.0;
+	
+	Vert[i] = Lerp3(UnProj(x1, y1, -1.0), 
+		UnProj(x1, y1, 1.0), 
+		DecodeFloatRGB(Vert[i])
+	);
+
+	AllMemoryBarrierWithGroupSync();
+
+	*/
+
+	float sizeDiv = float(2.0 / (float)size);
+
+	float x1 = ((float)id.x * sizeDiv) - 1.0;
+	float y1 = ((float)id.y * sizeDiv) - 1.0;
+
+	Vert[id.x] = Lerp3(UnProj(x1, y1, -1.0),
+		UnProj(x1, y1, 1.0),
+		DecodeFloatRGB(Face[id.x])
+	);
+	AllMemoryBarrierWithGroupSync();
+	
+}
+
+
+

@@ -1,0 +1,81 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel HoleFill
+
+
+const int size;
+uniform RWTexture2D<float4> Pixels : register(u1);
+
+
+[numthreads(1024, 1, 1)]
+
+void HoleFill(uint3 id : SV_DispatchThreadID) // SV_DispatchThreadID
+{
+
+	
+	uint m = (size == 512) ? 9 : (size == 1024) ? 10 : (size == 2048) ? 11 : 12; // 512 -> 4096 for powers of 2
+	uint i = id.x;
+	uint sizeA = size*size;
+	uint2 pos = uint2(i & (size - 1), i >> m);
+	float3 blends;
+	int counter = 0;
+
+	float p = Pixels[pos.xy].w;
+	float4 q;
+
+	uint2 t = uint2(0,0);
+
+	for (uint j = 0; j < 32; ++j) {
+		if (p == 0.0 ) {
+			blends = float3(0.0, 0.0, 0.0);
+			// check edges and other green areas so as not the blend there
+		
+			if (pos.x > 0)
+			{ // we can check left
+				t.x = pos.x - 1; t.y = pos.y;
+				q = Pixels[t.xy];
+				if (q.w != 0.0) {
+					blends.x += q.x; blends.y += q.y; blends.z += q.z; counter++;
+				}
+			}
+			if (pos.x < size - 1)
+			{ // we can check right
+				t.x = pos.x + 1; t.y = pos.y;
+				q = Pixels[t.xy];
+				if (q.w != 0.0) {
+					blends.x += q.x; blends.y += q.y; blends.z += q.z; counter++;
+				}
+			}
+
+
+			if (pos.y > 0)
+			{ // we can check down
+				t.x = pos.x; t.y = pos.y - 1;
+				q = Pixels[t.xy];
+				if (q.w != 0.0) {
+					blends.x += q.x; blends.y += q.y; blends.z += q.z; counter++;
+				}
+			}
+			if (pos.y < size - 1)
+			{ // we check up
+				t.x = pos.x; t.y = pos.y + 1;
+				q = Pixels[t.xy];
+				if (q.w != 0.0) {
+					blends.x += q.x; blends.y += q.y; blends.z += q.z; counter++;
+				}
+			}
+		
+			if (counter != 0) {
+				float c = float(1.0 / counter);
+				Pixels[pos.xy] = float4(blends.x * c, blends.y * c, blends.z * c, 1.0);
+				p = Pixels[pos.xy].w;
+				counter = 0;
+			}
+
+		// end check sides
+		}
+	}
+	//AllMemoryBarrierWithGroupSync();
+}
+
+
+
